@@ -8,11 +8,10 @@ var MAX_ERROR = 5;
 var index = 0;
 var errIndex = 0;
 var log = [];
-var carrentTask = 7;
-var carrentAnswer;
-var carrentValidation;
-var mode = 'complete';
-var data;
+var carrentTask = 5;
+var mode = 'complete';  // complete var mode = 'test'
+
+var newData = [];
 
 // объект с функциями заданий
 var operations = {
@@ -128,11 +127,13 @@ ws.onclose = function (e) {
     var message = JSON.parse(e.reason);
     if (e.reason.length > 0) {
         log.push(message);
+        newData.push(message);
     }
-    printLog();
+    printTasks();
     if (message.message === 'Timeout to answer 1000ms') {
         ws = new WebSocket('wss://part-1-task-1.herokuapp.com');
     }
+
 };
 
 ws.onmessage = function (e) {
@@ -150,23 +151,47 @@ ws.onmessage = function (e) {
         errIndex++;
     }
     if (message.type === 'done') {
+        done();
         testNxtOperations();
-        clear();
     }
     if (message.type === 'askComplete') {
-        send(carrentAnswer);
-        clear();
+        askComplete();
     }
 
 };
 
-/**
- *  Очистка глобальных переменных
- */
-function clear() {
-    carrentAnswer = undefined;
-    carrentValidation = undefined;
-    data = undefined;
+function askComplete() {
+    var i = newData.length - 1;
+    if (i < 0) {
+        console.info('Чтото не то. ');
+
+        return null;
+    }
+    var taskName = newData[i].taskName;
+    for (var j = i; j >= 0; j--) {
+        if (newData[j].askComplete !== undefined || newData[j].taskName !== taskName) {
+            break;
+        }
+        newData[j].askComplete = true;
+    }
+    send(newData[i]);
+}
+
+function done() {
+
+    var i = newData.length - 1;
+    if (i < 0) {
+        console.info('Чтото не то. ');
+
+        return null;
+    }
+    var taskName = newData[i].taskName;
+    for (var j = i; j >= 0; j--) {
+        if (newData[j].done !== undefined || newData[j].taskName !== taskName) {
+            break;
+        }
+        newData[j].done = true;
+    }
 }
 
 /**
@@ -179,7 +204,6 @@ function testNxtOperations() {
         return null;
     }
     var key = Object.keys(operations);
-    carrentAnswer = undefined;
     send({
         type: 'task',
         task: key[carrentTask]
@@ -201,13 +225,24 @@ function answer(message) {
  * @param {Object}obj
  */
 function send(obj) {
-    if (obj.type === 'answer' || (index < MAX && errIndex < MAX_ERROR)) {
-        index++;
-        var js = JSON.stringify(obj);
-        console.info('output :' + js);
-        log.push(js);
-        ws.send(js);
+    if (obj === undefined) {
+        obj = newData[newData.length - 1];
     }
+    var js;
+    if (obj.type === 'task' && (index < MAX && errIndex < MAX_ERROR)) {
+        js = JSON.stringify(obj);
+    } else {
+        js = JSON.stringify({
+            task: obj.taskName,
+            type: 'answer',
+            data: obj.output
+        });
+    }
+    index++;
+    console.info('output :' + js);
+    log.push(js);
+    ws.send(js);
+
 }
 
 /**
@@ -215,9 +250,11 @@ function send(obj) {
  * @param {Object}message
  */
 function echo(message) {
-    send({ task: 'echo',
-        type: 'answer',
-        data: message.data });
+
+    message.output = message.data;
+    message.askComplete = true;
+    newData.push(message);
+    send(message);
 }
 
 /**
@@ -226,9 +263,11 @@ function echo(message) {
  */
 function reverse(message) {
     console.info('reverse');
-    send({ task: 'reverse',
-        type: 'answer',
-        data: message.data.split('').reverse().join('') });
+    message.output = message.data.split('').reverse().join('');
+    message.askComplete = true;
+    newData.push(message);
+    send(message);
+
 }
 
 /**
@@ -237,13 +276,13 @@ function reverse(message) {
  */
 function sum(message) {
     console.info('sum');
-    if (carrentAnswer === undefined) {
-        carrentAnswer = { task: 'sum',
-            type: 'answer',
-            data: message.data };
-    } else {
-        carrentAnswer.data = carrentAnswer.data + message.data;
+    var l = newData.length - 1;
+    var prevSum = 0;
+    if (l >= 0 && newData[l].taskName === 'sum' && newData[l].askComplete !== true) {
+        prevSum = newData[l].output;
     }
+    message.output = message.data + prevSum;
+    newData.push(message);
 
 }
 
@@ -253,9 +292,10 @@ function sum(message) {
  */
 function calc(message) {
     console.info('calc');
-    send({ task: 'calc',
-        type: 'answer',
-        data: eval(message.data) });
+    message.output = eval(message.data);
+    message.askComplete = true;
+    newData.push(message);
+    send(message);
 }
 
 /**
@@ -264,12 +304,14 @@ function calc(message) {
  */
 function median(message) {
     console.info('median');
-    if (carrentAnswer === undefined) {
-        carrentAnswer = { task: 'median',
-            type: 'answer',
-            data: [message.data] };
-    } else {
-        carrentAnswer.data.push(message.data);
+    var l = newData.length - 1;
+    var mdata = [];
+    for (var i = l; i >= 0; i--) {
+        if (newData[i].taskName !== 'median' && newData[i].askComplete === true) {
+            break;
+        }
+        mdata.push(newData[i].data);
+
     }
     var fmedian = function (values) {
         values.sort(function (a, b) {
@@ -279,9 +321,10 @@ function median(message) {
 
         return values[half];
     };
-    send({ task: 'median',
-        type: 'answer',
-        data: fmedian(carrentAnswer.data) });
+    mdata.push(message.data);
+    message.output = fmedian(mdata);
+    newData.push(message);
+    send(message);
 }
 
 /**
@@ -290,16 +333,17 @@ function median(message) {
  */
 function groups(message) {
     console.info('groups');
-
-    if (carrentAnswer === undefined) {
-        carrentAnswer = { task: 'groups',
-            type: 'answer',
-            data: [] };
+    var l = newData.length - 1;
+    var groupData = [];
+    if (newData[l].taskName === 'groups' && newData[l].askComplete !== true) {
+        groupData = newData[l].output;
     }
-    if (carrentAnswer.data[message.data.group] === undefined) {
-        carrentAnswer.data[message.data.group] = [];
+    if (groupData[message.data.group] === undefined) {
+        groupData[message.data.group] = [];
     }
-    carrentAnswer.data[message.data.group].push(message.data.value);
+    groupData[message.data.group].push(message.data.value);
+    message.output = groupData;
+    newData.push(message);
 
 }
 
@@ -309,22 +353,27 @@ function groups(message) {
  */
 function recurrence(message) {
     console.info('recurrence');
-    if (data === undefined) { // Задаем массив пустой
-        data = [];
+    var l = newData.length - 1;
+    var mdata = [];
+    for (var t = l; t >= 0; t--) {
+        if (newData[t].taskName !== 'recurrence' && newData[t].askComplete === true) {
+            break;
+        }
+        mdata.push(newData[t].data);
+
     }
     var res = false;
-    for (var i = 0; i < data.length; i++) {
+    for (var i = 0; i < mdata.length; i++) {
         // Сравнение со всеми эллементами массива прошлых сообщений
-        res = checkPrev(message.data, data[i]);
+        res = checkPrev(message.data, mdata[i]);
         if (res) {
             // Если нашли - Заканчиваем
             break;
         }
     }
-    send({ task: 'recurrence',
-        type: 'answer',
-        data: res });
-    data.push(message.data); // Кладем текущее сообщение в историю
+    message.output = res;
+    newData.push(message);// Кладем текущее сообщение в историю
+    send(message);
 }
 
 /**
@@ -333,29 +382,27 @@ function recurrence(message) {
  * @returns {null}
  */
 function validator(message) {
-    if (carrentValidation === undefined) { // проверяем, определены ли параметры валидации.
-        parsValid(message.data); // если нет, то первое сообщение - параметры
-
-        return null; // Завершаем обработку первого сообщения
+    console.info('validator');
+    var l = newData.length - 1;
+    if (newData[l].taskName !== 'validator' || newData[l].askComplete === true) {
+        message.carrentValidation = parsValid(message.data);
+        newData.push(message);
+        return null;
     }
-    carrentAnswer = { task: 'validator', // Шаблон ответа
-        type: 'answer',
-        data: [] };
-
-
+    newData[l].data = message.data;
+    newData[l].output = [];
     for (var i = 0; i < message.data.length; i++) { // Перебираем все объекты в массиве данных
         var res = true;
-        for (var j = 0; j < carrentValidation.length; j++) {
+        for (var j = 0; j < newData[l].carrentValidation.length; j++) {
             // Перебираем заданные параметры валидации
-            var v = carrentValidation[j].check;
-            var n = carrentValidation[j].n;
-            var str = carrentValidation[j].str;
+            var v = newData[l].carrentValidation[j].check;
+            var n = newData[l].carrentValidation[j].n;
+            var str = newData[l].carrentValidation[j].str;
             var newR = validation[v](message.data[i], n, str); // Запускаем валидациюю
             res = res && newR;
         }
-        carrentAnswer.data[i] = res;
+        newData[l].output[i] = res;
     }
-    carrentValidation = undefined;
 
 }
 
@@ -365,25 +412,27 @@ function validator(message) {
  */
 function recurrence2(message) {
     console.info('recurrence2');
+    var l = newData.length - 1;
+    var mdata = [];
+    for (var t = l; t >= 0; t--) {
+        if (newData[t].taskName !== 'recurrence2' && newData[t].askComplete === true) {
+            break;
+        }
+        mdata.push(newData[t].data);
 
-    if (carrentAnswer === undefined) {
-        carrentAnswer = { task: 'recurrence2',
-            type: 'answer',
-            data: [] };
     }
-
     var res = false;
-    for (var i = 0; i < carrentAnswer.data.length; i++) {
-        res = checkPrev(message.data, carrentAnswer.data[i]);
+    for (var i = 0; i < mdata.length; i++) {
+        // Сравнение со всеми эллементами массива прошлых сообщений
+        res = checkPrev(message.data, mdata[i]);
         if (res) {
-
+            // Если нашли - Заканчиваем
             break;
         }
     }
-    send({ task: 'recurrence2',
-        type: 'answer',
-        data: res });
-    carrentAnswer.data.push(message.data);
+    message.output = res;
+    newData.push(message);// Кладем текущее сообщение в историю
+    send(message);
 }
 
 /**
@@ -391,7 +440,7 @@ function recurrence2(message) {
  * @param {object}md
  */
 function parsValid(md) {
-    carrentValidation = [];
+    var carrentValidation = [];
     console.info('parsValid');
 
     for (var i = 0; i < md.length; i++) {
@@ -406,6 +455,7 @@ function parsValid(md) {
         }
     }
 
+    return carrentValidation;
 }
 
 /**
@@ -421,6 +471,20 @@ function printLog(j) {
     var l = log.length;
     for (var i = 0; i < l; i++) {
         console.info('LOG ' + i + '   ' + JSON.stringify(log[i]));
+    }
+}
+
+function printTasks(j) {
+    console.info('PRINTTASKS');
+    if (j !== undefined) {
+        console.info('LOG ' + j + '   ' + JSON.stringify(newData[j]));
+
+        return;
+    }
+    console.info(newData.length);
+    var l = newData.length;
+    for (var i = 0; i < l; i++) {
+        console.info('LOG ' + i + '   ' + JSON.stringify(newData[i]));
     }
 }
 
@@ -444,8 +508,8 @@ function checkPrev(x, y) {
     if (sx.length !== sy.length) {
         return false;
     }
-    sx = sx.replace(/[",{}\[\]:]+/gi, ' ').split(' ').sort();
-    sy = sy.replace(/[",{}\[\]:]+/gi, ' ').split(' ').sort();
+    sx = sx.replace(/[",\+{}\[\]:]+/gi, ' ').split(' ').sort();
+    sy = sy.replace(/[",\+{}\[\]:]+/gi, ' ').split(' ').sort();
     if (sx.length !== sy.length) {
         return false;
     }
