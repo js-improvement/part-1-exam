@@ -10,7 +10,7 @@ var errIndex = 0;
 var log = [];
 var carrentTask = 5;
 var mode = 'complete';  // complete var mode = 'test'
-
+// var mode = 'test'
 var newData = [];
 
 // объект с функциями заданий
@@ -354,18 +354,12 @@ function groups(message) {
 function recurrence(message) {
     console.info('recurrence');
     var l = newData.length - 1;
-    var mdata = [];
+    var res = false;
     for (var t = l; t >= 0; t--) {
         if (newData[t].taskName !== 'recurrence' && newData[t].askComplete === true) {
             break;
         }
-        mdata.push(newData[t].data);
-
-    }
-    var res = false;
-    for (var i = 0; i < mdata.length; i++) {
-        // Сравнение со всеми эллементами массива прошлых сообщений
-        res = checkPrev(message.data, mdata[i]);
+        res = checkPrev(message.data, newData[t].data);
         if (res) {
             // Если нашли - Заканчиваем
             break;
