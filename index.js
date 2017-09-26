@@ -3,13 +3,13 @@
 var ws = new WebSocket('wss://part-1-task-1.herokuapp.com');
 // var ws = new WebSocket('ws://localhost:8080');
 
-var MAX = 20;
+var MAX = 10;
 var MAX_ERROR = 5;
 var index = 0;
 var errIndex = 0;
-var carrentTask = 3;
-var mode = 'complete'; // complete var mode = 'test'
-// var mode = 'test';
+var carrentTask = 2;
+// var mode = 'complete'; // complete var mode = 'test'
+var mode = 'test';
 var newData = [];
 
 // объект с функциями заданий
@@ -100,7 +100,7 @@ ws.onopen = function (e) {
 
 ws.onerror = function (e) {
     console.info('error' + errIndex, e);
-    var message = JSON.parse(e);
+    // var message = JSON.parse(e);
     errIndex++;
 };
 
@@ -179,7 +179,7 @@ function done() {
  * @returns {null}
  */
 function testNxtOperations() {
-    // carrentTask++;
+    carrentTask++;
     if (mode === 'complete') {
         return null;
     }
@@ -270,7 +270,7 @@ function sum(message) {
  */
 function calc(message) {
     console.info('calc');
-
+    calcMess2(message.data);
     message.output = calcMess(message.data.replace(/\s/g, '')); // eval(message.data);
     message.askComplete = true;
     newData.push(message);
@@ -324,6 +324,59 @@ function calcMess(line) {
     return res;
 }
 
+function calcMess2(line) {
+    // console.info(line);
+    console.info(line);
+    if (!isNaN(Number(line))) {
+        return Number(line);
+    }
+    var arr = line.split(' ');
+    var res = [];
+    var steck = [];
+    var prec = {};
+    prec['*'] = 3;
+    prec['+'] = 2;
+    var i;
+    for (i = 0; i < arr.length; i++) {
+        var n = Number(arr[i]);
+        if (!isNaN(n)) {
+            res.push(n);
+            continue;
+        }
+        if (steck.length === 0) {
+            steck.push(arr[i]);
+            continue;
+        }
+        if (prec[arr[i]] > prec[steck[steck.length - 1]]) {
+            steck.push(arr[i]);
+        } else {
+            res.push(steck.pop());
+            steck.push(arr[i]);
+        }
+
+    }
+    steck = steck.reverse();
+    res = res.concat(steck);
+    steck = [];
+    for (i = 0; i < res.length; i++) {
+        if (typeof (res[i]) === 'number') {
+            steck.push(res[i]);
+            continue;
+        }
+        var a = steck.pop();
+        var b = steck.pop();
+
+        if (res[i] === '+') {
+            steck.push(a + b);
+        } else {
+            steck.push(a * b);
+        }
+    }
+    var x = steck.pop();
+    return x;
+}
+
+
 /**
  * Задание Медиана
  * @param {Object}message
@@ -359,6 +412,7 @@ function median(message) {
  */
 function groups(message) {
     console.info('groups');
+    printTasks();
     var l = newData.length - 1;
     var groupData = [];
     if (newData[l].taskName === 'groups' && newData[l].askComplete !== true) {
