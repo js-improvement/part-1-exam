@@ -8,8 +8,8 @@ var MAX_ERROR = 5;
 var index = 0;
 var errIndex = 0;
 var carrentTask = 2;
-// var mode = 'complete'; // complete var mode = 'test'
-var mode = 'test';
+var mode = 'complete'; // complete var mode = 'test'
+//var mode = 'test';
 var newData = [];
 
 // объект с функциями заданий
@@ -270,110 +270,64 @@ function sum(message) {
  */
 function calc(message) {
     console.info('calc');
-    calcMess2(message.data);
-    message.output = calcMess(message.data.replace(/\s/g, '')); // eval(message.data);
+
+    message.output = calcMess(message.data); // eval(message.data);
     message.askComplete = true;
     newData.push(message);
     send(message);
 
 }
-
-
-var calcOper = {
-    '+': function plus(a, b) {
-        if (!b) {
-            b = 0;
-        }
-
-        return a + b;
-    },
-    '*': function dec(a, b) {
-        if (!b && b !== 0) {
-            b = 1;
-        }
-
-        return a * b;
-    }
+var prec = {
+    '*': 3,
+    '+': 2
 };
 
+/**
+ * Функция вычисления выражения состоящего из чисел + и *
+ * Используется совмещенный алгоритм перевода в постфиксную форму
+ * и вычисления выражения в постфиксной форме
+ * @param {String}line
+ * @returns {*}
+ */
 function calcMess(line) {
-    // console.info(line);
-    if (!isNaN(Number(line))) {
-        return Number(line);
-    }
-    var res;
-    var key = Object.keys(calcOper);
-    for (var i = 0; i < key.length; i++) {
-
-        var arr = line.split(key[i]);
-        if (arr.length === 1) {
-            continue;
-        }
-        for (var j = 0; j < arr.length; j++) {
-            var n = Number(arr[j]);
-            if (isNaN(n)) {
-                res = calcOper[key[i]](calcMess(arr[j]), res);
-                line = line.replace(arr[j], res);
-            } else {
-                res = calcOper[key[i]](n, res);
-            }
-
-        }
-    }
-
-    return res;
-}
-
-function calcMess2(line) {
-    // console.info(line);
-    console.info(line);
     if (!isNaN(Number(line))) {
         return Number(line);
     }
     var arr = line.split(' ');
-    var res = [];
-    var steck = [];
-    var prec = {};
-    prec['*'] = 3;
-    prec['+'] = 2;
     var i;
-    for (i = 0; i < arr.length; i++) {
-        var n = Number(arr[i]);
-        if (!isNaN(n)) {
-            res.push(n);
+    var sOper = [];
+    var sNum = [];
+    for (i = 0; i < arr.length * 2; i++) {
+        if (i > arr.length && sNum.length === 1) {
+            return sNum.pop();
+        }
+        if (!isNaN(Number(arr[i])) && i < arr.length) {
+            sNum.push(Number(arr[i]));
             continue;
         }
-        if (steck.length === 0) {
-            steck.push(arr[i]);
+        if (sOper.length === 0) {
+            sOper.push(arr[i]);
             continue;
         }
-        if (prec[arr[i]] > prec[steck[steck.length - 1]]) {
-            steck.push(arr[i]);
+        if (i < arr.length && sOper.length !== 0 && prec[arr[i]] > prec[sOper[sOper.length - 1]]) {
+            sOper.push(arr[i]);
         } else {
-            res.push(steck.pop());
-            steck.push(arr[i]);
+            var a = sNum.pop();
+            var b = sNum.pop();
+            var o = sOper.pop();
+            if (o === '+') {
+                sNum.push(a + b);
+            } else {
+                sNum.push(a * b);
+            }
+            if (i < arr.length) {
+                sOper.push(arr[i]);
+            }
         }
 
     }
-    steck = steck.reverse();
-    res = res.concat(steck);
-    steck = [];
-    for (i = 0; i < res.length; i++) {
-        if (typeof (res[i]) === 'number') {
-            steck.push(res[i]);
-            continue;
-        }
-        var a = steck.pop();
-        var b = steck.pop();
 
-        if (res[i] === '+') {
-            steck.push(a + b);
-        } else {
-            steck.push(a * b);
-        }
-    }
-    var x = steck.pop();
-    return x;
+    return null;
 }
 
 
