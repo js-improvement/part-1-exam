@@ -7,41 +7,22 @@ var MAX = 20;
 var MAX_ERROR = 5;
 var index = 0;
 var errIndex = 0;
-var log = [];
-var carrentTask = 5;
-var mode = 'complete';  // complete var mode = 'test'
-// var mode = 'test'
+var carrentTask = 3;
+var mode = 'complete'; // complete var mode = 'test'
+// var mode = 'test';
 var newData = [];
 
 // объект с функциями заданий
 var operations = {
-    echo: function (message) {
-        echo(message);
-    },
-    reverse: function (message) {
-        reverse(message);
-    },
-    sum: function (message) {
-        sum(message);
-    },
-    calc: function (message) {
-        calc(message);
-    },
-    median: function (message) {
-        median(message);
-    },
-    groups: function (message) {
-        groups(message);
-    },
-    recurrence: function (message) {
-        recurrence(message);
-    },
-    validator: function (message) {
-        validator(message);
-    },
-    recurrence2: function (message) {
-        recurrence2(message);
-    }
+    echo: echo,
+    reverse: reverse,
+    sum: sum,
+    calc: calc,
+    median: median,
+    groups: groups,
+    recurrence: recurrence,
+    validator: validator,
+    recurrence2: recurrence2
 };
 
 // Объект с функциями проверок
@@ -74,7 +55,7 @@ var validation = {
     }, //  - меньше числа N
     isPrime: function (message) {
         var n = Number(message);
-        for (var i = 2; i < n; i++) {
+        for (var i = 2; i < Math.sqrt(n); i++) {
             if (n % i === 0) {
                 return false;
             }
@@ -113,12 +94,13 @@ ws.onopen = function (e) {
         repo: 'test',
         name: 'avshev'
     }));
+
+    //  console.info();
 };
 
 ws.onerror = function (e) {
     console.info('error' + errIndex, e);
     var message = JSON.parse(e);
-    log.push(message);
     errIndex++;
 };
 
@@ -126,7 +108,6 @@ ws.onclose = function (e) {
     console.info('close', e);
     var message = JSON.parse(e.reason);
     if (e.reason.length > 0) {
-        log.push(message);
         newData.push(message);
     }
     printTasks();
@@ -138,7 +119,6 @@ ws.onclose = function (e) {
 
 ws.onmessage = function (e) {
     var message = JSON.parse(e.data);
-    log.push(message);
     console.info('input message', message);
     if (message.type === 'info' && index === 0) {
         testNxtOperations();
@@ -199,7 +179,7 @@ function done() {
  * @returns {null}
  */
 function testNxtOperations() {
-    carrentTask++;
+    // carrentTask++;
     if (mode === 'complete') {
         return null;
     }
@@ -217,7 +197,6 @@ function testNxtOperations() {
 function answer(message) {
     console.info(message);
     operations[message.taskName](message);
-
 }
 
 /**
@@ -240,7 +219,6 @@ function send(obj) {
     }
     index++;
     console.info('output :' + js);
-    log.push(js);
     ws.send(js);
 
 }
@@ -292,10 +270,58 @@ function sum(message) {
  */
 function calc(message) {
     console.info('calc');
-    message.output = eval(message.data);
+
+    message.output = calcMess(message.data.replace(/\s/g, '')); // eval(message.data);
     message.askComplete = true;
     newData.push(message);
     send(message);
+
+}
+
+
+var calcOper = {
+    '+': function plus(a, b) {
+        if (!b) {
+            b = 0;
+        }
+
+        return a + b;
+    },
+    '*': function dec(a, b) {
+        if (!b && b !== 0) {
+            b = 1;
+        }
+
+        return a * b;
+    }
+};
+
+function calcMess(line) {
+    // console.info(line);
+    if (!isNaN(Number(line))) {
+        return Number(line);
+    }
+    var res;
+    var key = Object.keys(calcOper);
+    for (var i = 0; i < key.length; i++) {
+
+        var arr = line.split(key[i]);
+        if (arr.length === 1) {
+            continue;
+        }
+        for (var j = 0; j < arr.length; j++) {
+            var n = Number(arr[j]);
+            if (isNaN(n)) {
+                res = calcOper[key[i]](calcMess(arr[j]), res);
+                line = line.replace(arr[j], res);
+            } else {
+                res = calcOper[key[i]](n, res);
+            }
+
+        }
+    }
+
+    return res;
 }
 
 /**
@@ -358,6 +384,7 @@ function recurrence(message) {
     for (var t = l; t >= 0; t--) {
         if (newData[t].taskName !== 'recurrence' && newData[t].askComplete === true) {
             break;
+            // не с чем больше сравнивать
         }
         res = checkPrev(message.data, newData[t].data);
         if (res) {
@@ -372,7 +399,7 @@ function recurrence(message) {
 
 /**
  * Задание валидация сообщений
- * @param {Object)message
+ * @param {Object}message
  * @returns {null}
  */
 function validator(message) {
@@ -381,6 +408,7 @@ function validator(message) {
     if (newData[l].taskName !== 'validator' || newData[l].askComplete === true) {
         message.carrentValidation = parsValid(message.data);
         newData.push(message);
+
         return null;
     }
     newData[l].data = message.data;
@@ -390,9 +418,9 @@ function validator(message) {
         for (var j = 0; j < newData[l].carrentValidation.length; j++) {
             // Перебираем заданные параметры валидации
             var v = newData[l].carrentValidation[j].check;
-            var n = newData[l].carrentValidation[j].n;
-            var str = newData[l].carrentValidation[j].str;
-            var newR = validation[v](message.data[i], n, str); // Запускаем валидациюю
+            var newR = validation[v](message.data[i],
+                newData[l].carrentValidation[j].n,
+                newData[l].carrentValidation[j].str); // Запускаем валидациюю
             res = res && newR;
         }
         newData[l].output[i] = res;
@@ -407,18 +435,13 @@ function validator(message) {
 function recurrence2(message) {
     console.info('recurrence2');
     var l = newData.length - 1;
-    var mdata = [];
+    var res = false;
     for (var t = l; t >= 0; t--) {
         if (newData[t].taskName !== 'recurrence2' && newData[t].askComplete === true) {
             break;
+            // не с чем больше сравнивать
         }
-        mdata.push(newData[t].data);
-
-    }
-    var res = false;
-    for (var i = 0; i < mdata.length; i++) {
-        // Сравнение со всеми эллементами массива прошлых сообщений
-        res = checkPrev(message.data, mdata[i]);
+        res = checkPrev(message.data, newData[t].data);
         if (res) {
             // Если нашли - Заканчиваем
             break;
@@ -432,6 +455,7 @@ function recurrence2(message) {
 /**
  * Парсим пакет с параметрами для валидации
  * @param {object}md
+ * @returns {object}
  */
 function parsValid(md) {
     var carrentValidation = [];
@@ -450,22 +474,6 @@ function parsValid(md) {
     }
 
     return carrentValidation;
-}
-
-/**
- * Функция вывода Лога на экран
- * @param {number}j
- */
-function printLog(j) {
-    if (j !== undefined) {
-        console.info('LOG ' + j + '   ' + JSON.stringify(log[j]));
-
-        return;
-    }
-    var l = log.length;
-    for (var i = 0; i < l; i++) {
-        console.info('LOG ' + i + '   ' + JSON.stringify(log[i]));
-    }
 }
 
 function printTasks(j) {
@@ -496,6 +504,9 @@ function printTasks(j) {
 function checkPrev(x, y) {
     if (x === y) {
         return true;
+    }
+    if (typeof (x) !== typeof (y)) {
+        return false;
     }
     var sx = JSON.stringify(x);
     var sy = JSON.stringify(y);
